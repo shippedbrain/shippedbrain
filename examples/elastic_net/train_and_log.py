@@ -100,10 +100,10 @@ def main(publish):
 
     if publish:
         print("Publishing model to app.shippedbrain.com")
-        shippedbrain.upload(email=SHIPPED_BRAIN_EMAIL,
-                            password=SHIPPED_BRAIN_PASSWORD,
-                            run_id=run.info.run_id,
-                            model_name=MODEL_NAME)
+        shippedbrain.upload_run(email=SHIPPED_BRAIN_EMAIL,
+                                password=SHIPPED_BRAIN_PASSWORD,
+                                run_id=run.info.run_id,
+                                model_name=MODEL_NAME)
 
     return run
 

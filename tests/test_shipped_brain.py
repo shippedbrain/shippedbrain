@@ -6,6 +6,7 @@ from shippedbrain import shippedbrain
 import os
 import mlflow
 from tests import MODEL_NAME, MLRUNS_PATH, LOGIN_URL_HTTP_BIN, UPLOAD_URL_HTTP_BIN
+import tests.resources.train as train
 
 client = mlflow.tracking.MlflowClient()
 
@@ -160,17 +161,17 @@ class TestShippedBrain:
         assert artifacts_base == artifacts_result
 
     def test__log_model_inside_run_context(self):
-        import tests.resources.train as train
-        
-        run = train.main(log_with_shippedbrain=True, run_inside_mlflow_context=True)
+        log_model_option = {"flavor": "_log_model"}
+
+        run = train.main(log_model_option=log_model_option, run_inside_mlflow_context=True)
 
         assert shippedbrain._validate_run_id(client, run.info.run_id), "Run id is not valid"
         assert shippedbrain._validate_model(run.info.run_id), "Logged model is not valid"
 
     def test__log_model_outside_run_context(self):
-        import tests.resources.train as train
+        log_model_option = {"flavor": "_log_model"}
 
-        run = train.main(log_with_shippedbrain=True, run_inside_mlflow_context=False)
+        run = train.main(log_model_option=log_model_option, run_inside_mlflow_context=False)
 
         assert shippedbrain._validate_run_id(client, run.info.run_id), "Run id is not valid"
         assert shippedbrain._validate_model(run.info.run_id), "Logged model is not valid"

@@ -105,7 +105,7 @@ def _validate_model(run_id: str) -> bool:
     except Exception as e:
         raise Exception(
             f"Could not fetch signature for model with run id '{run_id}'. Please log a model with a valid "
-            f"signature.\nLogged model {logged_model} "
+            f"signature.\nLogged model {logged_model}. Error: {e}"
         )
     try:
         _ = logged_model['saved_input_example_info']
@@ -300,14 +300,50 @@ def _log_model(artifacts_path: str, model_artifacts_dir: str) -> mlflow.entities
     return run
 
 
-def upload(run_id: str,
-           model_name: str,
-           email: Optional[str] = None,
-           password: Optional[str] = None,
-           flavor: str = "pyfunc",
-           login_url: str = LOGIN_URL,
-           upload_url: str = UPLOAD_URL) -> requests.Response:
-    """ Upload artifacts to Shipped Brain
+def upload_model(flavor: str,
+                 model_name: str,
+                 input_example,
+                 signature,
+                 email: Optional[str] = None,
+                 password: Optional[str] = None,
+                 login_url: str = LOGIN_URL,
+                 upload_url: str = UPLOAD_URL,
+                 **kwargs) -> requests.Response:
+    """ Publish trained model to shipped brain
+
+    """
+
+    email = email if email else os.getenv("SHIPPED_BRAIN_EMAIL")
+    password = password if password else os.getenv("SHIPPED_BRAIN_PASSWORD")
+
+    assert email, f"Bad email. Environment variable SHIPPED_BRAIN_EMAIL is not defined or you did not provide the email argument."
+    assert password,f"Bad password. Environment variable SHIPPED_BRAIN_PASSWORD is not defined or you did not provide the password argument."
+    assert _validate_model_name(model_name), f"Bad model name '{model_name}! Please provide a valid model name"
+
+    model_run = _log_flavor(flavor=flavor, input_example=input_example, signature=signature, **kwargs)
+
+    assert model_run is not None,\
+        "An error occurred while trying to log model to user's mlflow tracking uri - model_run is None. "
+
+    # No need to validate [model_run], [upload_run] function already does
+    upload_response = upload_run(run_id=model_run.info.run_id,
+                                 model_name=model_name, email=email,
+                                 password=password,
+                                 flavor=flavor,
+                                 login_url=login_url,
+                                 upload_url=upload_url)
+
+    return upload_response
+
+
+def upload_run(run_id: str,
+               model_name: str,
+               email: Optional[str] = None,
+               password: Optional[str] = None,
+               flavor: str = "pyfunc",
+               login_url: str = LOGIN_URL,
+               upload_url: str = UPLOAD_URL) -> requests.Response:
+    """ Publish model to Shipped Brain from a logged mlflow model's run id
 
     :param run_id: run id of mlflow logged model
     :param model_name: name of the model to publish on app.shippedbrain.com
@@ -359,9 +395,10 @@ def _get_required_log_model_args(log_model_func: callable) -> list:
     signature = inspect.signature(log_model_func)
     return [k for k, v in signature.parameters.items() if v.default is inspect.Parameter.empty]
 
-# WiP
-# TODO add named args
+
 def _log_flavor(flavor: str,
+                input_example,
+                signature: mlflow.models.signature.ModelSignature,
                 **kwargs) -> mlflow.entities.Run:
     # conda_env: str,
     # input_example: Union[pandas.core.frame.DataFrame, numpy.ndarray, dict, list],
@@ -384,12 +421,11 @@ def _log_flavor(flavor: str,
     # Required args by Shipped Brain
     # artifact_path arg. is required by [log_model] method
     # TODO handle model name
-    sb_required_args_set = set(["input_example", "signature"])
 
     assert _is_valid_flavor(flavor), f"Failed to validate model flavor. Bad model flavor '{flavor}'."
     assert hasattr(mlflow, flavor), f"Failed to log model. Could not find flavor '{flavor}' in mlflow." 
 
-    flavor_module =eval(f"mlflow.{flavor}" )
+    flavor_module = eval(f"mlflow.{flavor}" )
     assert callable(getattr(flavor_module, log_model_function_name)), f"Failed to log model. Flavor '{flavor}' does not have {log_model_function_name} method."
 
     log_model_function = eval(f"mlflow.{flavor}.{log_model_function_name}")
@@ -399,13 +435,10 @@ def _log_flavor(flavor: str,
     # remove kwargs
     log_function_required_args_set -= set(["kwargs"])
     
-    # Create set with all required args.
-    all_required_args_set = set.union(sb_required_args_set, log_function_required_args_set)
-    
     user_kwargs_set = set(kwargs.keys())
-    #print("[DEBUG] All required args", all_required_args_set)
+    #print("[DEBUG] All required args", log_function_required_args_set)
     
-    missing_args = all_required_args_set - user_kwargs_set
+    missing_args = log_function_required_args_set - user_kwargs_set
 
     #print("[DEBUG] MISSING ARGS:", missing_args)
     assert len(missing_args) == 0, f"Failed to log model. Missing arguments {missing_args}"
@@ -414,9 +447,9 @@ def _log_flavor(flavor: str,
     active_run = mlflow.active_run()
     if not active_run:
         active_run = mlflow.start_run()
-        log_model_function(**kwargs)
+        log_model_function(signature=signature, input_example=input_example, **kwargs)
         mlflow.end_run()
     else:
-        log_model_function(**kwargs)
+        log_model_function(signature=signature, input_example=input_example, **kwargs)
 
     return active_run

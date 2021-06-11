@@ -118,10 +118,13 @@ To publish a model programatically you just need call the `shippedbrain.upload` 
 
 ##### Example
 You can easily publish a model with one line of code:
+
 ```python
 from shippedbrain import shippedbrain
+
 # your custom code ...
-shippedbrain.upload(email="<your@email.com>", password="<your_password>", model_name="<model-name>", run_id="<model-run-id>")
+shippedbrain.upload_run(email="<your@email.com>", password="<your_password>", model_name="<model-name>",
+                        run_id="<model-run-id>")
 ```
 
 ###End-to-end example
@@ -153,11 +156,12 @@ Run: `shippedbrain upload --model_name ElasticWine --run_id <some_run_id>`
 
 #### Typical workflow integration using the Python API
 
-If `SHIPPED_BRAIN_EMAIL` and/or `SHIPPED_BRAIN_PASSWORD` are set arguments `email` and `password` can be left blank, respectively 
+If `SHIPPED_BRAIN_EMAIL` and/or `SHIPPED_BRAIN_PASSWORD` are set arguments `email` and `password` can be left blank, respectively
 
 ```python
 import mlflow
 from shippedbrain import shippedbrain
+
 # other imports...
 
 SHIPPED_BRAIN_EMAIL = "your_email@mail.com"
@@ -165,18 +169,18 @@ SHIPPED_BRAIN_PASSWORD = "your_password"
 MODEL_NAME = "ElasticWine"
 
 with mlflow.start_run() as run:
-    
     # required to upload a valid model on shipped brain
-    signature = # use mlflow.models.signature.infer_signature
-    input_example = # one input example of your data Union[pandas.DataFrame | numpy.ndarray] 
-    
+    signature =  # use mlflow.models.signature.infer_signature
+    input_example =  # one input example of your data Union[pandas.DataFrame | numpy.ndarray] 
+
     # train model
-    model = # trained model
-    
+    model =  # trained model
+
     # log model
     mlflow.sklearn.log_model(model, "model", signature=signature, input_example=input_example)
     print(f"run_id='{run.info.run_id}'")
-    
+
     # publish model
-    shippedbrain.upload(email=SHIPPED_BRAIN_EMAIL, password=SHIPPED_BRAIN_PASSWORD, run_id=run.info.run_id, model_name=MODEL_NAME)
+    shippedbrain.upload_run(email=SHIPPED_BRAIN_EMAIL, password=SHIPPED_BRAIN_PASSWORD, run_id=run.info.run_id,
+                            model_name=MODEL_NAME)
 ```

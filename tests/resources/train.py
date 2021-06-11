@@ -22,6 +22,8 @@ from  tests import MODEL_NAME
 
 import logging
 
+from shippedbrain import shippedbrain
+
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
 
@@ -47,10 +49,14 @@ def train_and_eval(alpha, l1_ratio, train_x, train_y, test_x, test_y):
     return lr, predicted_qualities, signature, rmse, mae, r2
 
 # if __name__ == "__main__":
-def main(log_with_shippedbrain: bool=False, run_inside_mlflow_context: bool=True):
+def main(log_model_option: dict = {"flavor": "mlflow"}, run_inside_mlflow_context: bool = True):
     """ Train and log model
 
-    :param log_with_shippedbrain: if True logs model using shippedbrain._log_model, otherwise use mlflow
+    :param log_model_option: Log model using options:
+                             if {"flavor": "mlflow"}: log model using mlflow log_model method
+                             else if {"flavor": "_log_model"} log model using shipped brain _log_model function
+                             else ig {"flavor": "upload_run" | "upload_model", args...} log model using named function with args
+                             NB: input_example and signature are not required
     :param run_inside_mlflow_context: if True run log method from mlflow run context,
                                       otherwise use shippedbrain.log_flavor outside without mlflow run context
     """
@@ -87,6 +93,9 @@ def main(log_with_shippedbrain: bool=False, run_inside_mlflow_context: bool=True
 
     lr, predicted_qualities, signature, rmse, mae, r2 = train_and_eval(alpha, l1_ratio, train_x, train_y, test_x, test_y)
 
+    log_model_option["signature"] = signature
+    log_model_option["input_example"] = test_x.iloc[0:2]
+
     print(f"[INFO] RUN INSIDE MLFLOW RUN CONTEXT={run_inside_mlflow_context}")
     if run_inside_mlflow_context:
         with mlflow.start_run() as run:
@@ -106,22 +115,35 @@ def main(log_with_shippedbrain: bool=False, run_inside_mlflow_context: bool=True
             tracking_url_type_store = urlparse(mlflow.get_tracking_uri()).scheme
 
             # Model registry does not work with file store
-            if log_with_shippedbrain:
-                from shippedbrain import shippedbrain
-                _ = shippedbrain._log_flavor("sklearn", sk_model = lr, signature = signature, input_example = test_x.iloc[0:2], artifact_path="model")
-            elif tracking_url_type_store != "file":
-                mlflow.sklearn.log_model(lr, "model", registered_model_name=MODEL_NAME, signature=signature, input_example=test_x.iloc[0:2])
+            print("[DEBUG] Log model option flavor:", log_model_option["flavor"])
+            if log_model_option["flavor"] == "_log_model":
+                _ = shippedbrain._log_flavor("sklearn", sk_model = lr, signature = signature, input_example = log_model_option["input_example"], artifact_path="model")
+            # INTEGRATION
+            elif log_model_option["flavor"] == "upload_model" or log_model_option["flavor"] == "upload_run":
+                flavor = log_model_option["flavor"]
+                log_model_option.pop("flavor")
+                log_func = eval(f"shippedbrain.{flavor}")
+                _ = log_func(**log_model_option)
             else:
-                mlflow.sklearn.log_model(lr, "model", signature=signature, input_example=test_x.iloc[0:2])
+                mlflow.sklearn.log_model(lr, "model", signature=signature, input_example=log_model_option["input_example"])
 
             print(f"[INFO] Model URI runs:/{run.info.run_id}/model\n")
 
         return run
 
     else:
-        from shippedbrain import shippedbrain
-        run = shippedbrain._log_flavor("sklearn", sk_model=lr, signature=signature, input_example=test_x.iloc[0:2],
-                                       artifact_path="model")
+        if log_model_option["flavor"] == "_log_model":
+            run = shippedbrain._log_flavor("sklearn",
+                                           sk_model=lr,
+                                           signature=signature,
+                                           input_example=log_model_option["input_example"],
+                                           artifact_path="model")
+        # INTEGRATION
+        elif log_model_option["flavor"] == "upload_model" or log_model_option["flavor"] == "upload_run":
+            flavor = log_model_option["flavor"]
+            log_model_option.pop("flavor")
+            log_func = eval(f"shippedbrain.{flavor}")
+            run = log_func(**log_model_option)
 
         print(f"[INFO] Model URI runs:/{run.info.run_id}/model\n")
 
