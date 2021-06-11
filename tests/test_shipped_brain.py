@@ -159,6 +159,22 @@ class TestShippedBrain:
         artifacts_result = client.list_artifacts(logged_run.info.run_id)
         assert artifacts_base == artifacts_result
 
+    def test__log_model_inside_run_context(self):
+        import tests.resources.train as train
+        
+        run = train.main(log_with_shippedbrain=True, run_inside_mlflow_context=True)
+
+        assert shippedbrain._validate_run_id(client, run.info.run_id), "Run id is not valid"
+        assert shippedbrain._validate_model(run.info.run_id), "Logged model is not valid"
+
+    def test__log_model_outside_run_context(self):
+        import tests.resources.train as train
+
+        run = train.main(log_with_shippedbrain=True, run_inside_mlflow_context=False)
+
+        assert shippedbrain._validate_run_id(client, run.info.run_id), "Run id is not valid"
+        assert shippedbrain._validate_model(run.info.run_id), "Logged model is not valid"
+
     # TODO integration test
     # def test_upload(self):
     #     shippedbrain.upload(RUN_ID, "Test-Model-46", "bernardo@shippedbrain.com", "password", login_url=LOGIN_URL_HTTP_BIN, upload_url=UPLOAD_URL_HTTP_BIN)

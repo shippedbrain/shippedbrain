@@ -32,9 +32,28 @@ def eval_metrics(actual, pred):
     r2 = r2_score(actual, pred)
     return rmse, mae, r2
 
+def train_and_eval(alpha, l1_ratio, train_x, train_y, test_x, test_y):
+    lr = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, random_state=46)
+
+    lr.fit(train_x, train_y)
+
+    predicted_qualities = lr.predict(test_x)
+
+    (rmse, mae, r2) = eval_metrics(test_y, predicted_qualities)
+
+    # Infer model signature
+    signature = infer_signature(test_x, predicted_qualities)
+
+    return lr, predicted_qualities, signature, rmse, mae, r2
 
 # if __name__ == "__main__":
-def main():
+def main(log_with_shippedbrain: bool=False, run_inside_mlflow_context: bool=True):
+    """ Train and log model
+
+    :param log_with_shippedbrain: if True logs model using shippedbrain._log_model, otherwise use mlflow
+    :param run_inside_mlflow_context: if True run log method from mlflow run context,
+                                      otherwise use shippedbrain.log_flavor outside without mlflow run context
+    """
     warnings.filterwarnings("ignore")
     np.random.seed(46)
     
@@ -47,6 +66,7 @@ def main():
         "http://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv"
     )
     try:
+        print("Downloading dataset...")
         data = pd.read_csv(csv_url, sep=";")
     except Exception as e:
         logger.exception(
@@ -65,40 +85,44 @@ def main():
     alpha = float(sys.argv[1]) if len(sys.argv) > 1 else 0.5
     l1_ratio = float(sys.argv[2]) if len(sys.argv) > 2 else 0.5
 
-    with mlflow.start_run() as run:
-        print("[INFO] Starting run with id:", run.info.run_id)
-    
-        lr = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, random_state=46)
-        
-        print("[INFO] Training...")
-        lr.fit(train_x, train_y)
+    lr, predicted_qualities, signature, rmse, mae, r2 = train_and_eval(alpha, l1_ratio, train_x, train_y, test_x, test_y)
 
-        predicted_qualities = lr.predict(test_x)
+    print(f"[INFO] RUN INSIDE MLFLOW RUN CONTEXT={run_inside_mlflow_context}")
+    if run_inside_mlflow_context:
+        with mlflow.start_run() as run:
+            print("[INFO] Starting run with id:", run.info.run_id)
 
-        (rmse, mae, r2) = eval_metrics(test_y, predicted_qualities)
+            print("[INFO]Elasticnet model (alpha=%f, l1_ratio=%f):" % (alpha, l1_ratio))
+            print("[INFO]\tRMSE: %s" % rmse)
+            print("[INFO]\tMAE: %s" % mae)
+            print("[INFO]\tR2: %s" % r2)
 
-        print("[INFO]Elasticnet model (alpha=%f, l1_ratio=%f):" % (alpha, l1_ratio))
-        print("[INFO]\tRMSE: %s" % rmse)
-        print("[INFO]\tMAE: %s" % mae)
-        print("[INFO]\tR2: %s" % r2)
+            mlflow.log_param("alpha", alpha)
+            mlflow.log_param("l1_ratio", l1_ratio)
+            mlflow.log_metric("rmse", rmse)
+            mlflow.log_metric("r2", r2)
+            mlflow.log_metric("mae", mae)
 
-        mlflow.log_param("alpha", alpha)
-        mlflow.log_param("l1_ratio", l1_ratio)
-        mlflow.log_metric("rmse", rmse)
-        mlflow.log_metric("r2", r2)
-        mlflow.log_metric("mae", mae)
+            tracking_url_type_store = urlparse(mlflow.get_tracking_uri()).scheme
 
-        tracking_url_type_store = urlparse(mlflow.get_tracking_uri()).scheme
+            # Model registry does not work with file store
+            if log_with_shippedbrain:
+                from shippedbrain import shippedbrain
+                _ = shippedbrain._log_flavor("sklearn", sk_model = lr, signature = signature, input_example = test_x.iloc[0:2], artifact_path="model")
+            elif tracking_url_type_store != "file":
+                mlflow.sklearn.log_model(lr, "model", registered_model_name=MODEL_NAME, signature=signature, input_example=test_x.iloc[0:2])
+            else:
+                mlflow.sklearn.log_model(lr, "model", signature=signature, input_example=test_x.iloc[0:2])
 
-        # Infer model signature
-        signature = infer_signature(test_x, predicted_qualities)
+            print(f"[INFO] Model URI runs:/{run.info.run_id}/model\n")
 
-        # Model registry does not work with file store
-        if tracking_url_type_store != "file":
-            mlflow.sklearn.log_model(lr, "model", registered_model_name=MODEL_NAME, signature=signature, input_example=test_x.iloc[0:2])
-        else:
-            mlflow.sklearn.log_model(lr, "model", signature=signature, input_example=test_x.iloc[0:2])
-        
+        return run
+
+    else:
+        from shippedbrain import shippedbrain
+        run = shippedbrain._log_flavor("sklearn", sk_model=lr, signature=signature, input_example=test_x.iloc[0:2],
+                                       artifact_path="model")
+
         print(f"[INFO] Model URI runs:/{run.info.run_id}/model\n")
 
-    return run
+        return run

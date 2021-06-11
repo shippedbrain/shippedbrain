@@ -11,6 +11,7 @@ import json
 import uuid
 import re
 from shippedbrain import LOGIN_URL, UPLOAD_URL
+import inspect
 
 flavors = {
     "pyfunc": mlflow.pyfunc,
@@ -348,32 +349,74 @@ def upload(run_id: str,
 
         return upload_response
 
+def _get_required_log_model_args(log_model_func: callable) -> list:
+    """ Return function arguments with no default values (a.k.a. required)
+
+    :param log_model_func: a python callable - expected mlflow.<flavor>.log_model
+
+    :return: list of function arguments with no default value
+    """
+    signature = inspect.signature(log_model_func)
+    return [k for k, v in signature.parameters.items() if v.default is inspect.Parameter.empty]
+
 # WiP
 # TODO add named args
-# def _log_flavor(model: Any,
-#                 flavor: str,
-#                 conda_env: str,
-#                 input_example: Union[pandas.core.frame.DataFrame, numpy.ndarray, dict, list],
-#                 signature: mlflow.models.signature.ModelSignature):
-#     """ Log model flavor to Shipped Brain - similar to mlflow.<flavour>.log_model
-#
-#     :param model: path to serialized model
-#     :param flavor: a valid model flavor
-#     :param conda_env: path to conda environment file
-#     :param input_example: path to input example file
-#     :param signature: an mlflow.Signature
-#
-#     :return:
-#     """
-#     assert _is_valid_flavor(flavor), f"Failed to log model. Bad model flavor '{flavor}'."
-#
-#     # log local e enviar run VS enviar logo para o server
-#     # log local é mais fácil
-#     # model_logger = flavors[flavor]
-#     # with mlflow.start_run() as model_log_run:
-#     #     print(f"Logging local model flavor '{flavor}' with run_id={model_log_run.info.run_id}")
-#     #     model_logger.log_model(model, conda_env=conda_env, input_example=input_example, signature=signature)
-#     #
-#     # return model_log_run
-#     pass
+def _log_flavor(flavor: str,
+                **kwargs) -> mlflow.entities.Run:
+    # conda_env: str,
+    # input_example: Union[pandas.core.frame.DataFrame, numpy.ndarray, dict, list],
+    # signature: mlflow.models.signature.ModelSignature):
+    """ Log model flavor to Shipped Brain - similar to mlflow.<flavour>.log_model
 
+    :param model: path to serialized model
+    :param flavor: a valid model flavor
+    :param conda_env: path to conda environment file
+    :param input_example: path to input example file
+    :param signature: an mlflow.Signature
+
+    :return: logged model mlflow.entities.Run instance
+    """
+    #print(f"[DEBUG] flavor={flavor}")
+    #print(f"[DEBUG] kwargs={kwargs}")
+
+    log_model_function_name = "log_model"
+
+    # Required args by Shipped Brain
+    # artifact_path arg. is required by [log_model] method
+    # TODO handle model name
+    sb_required_args_set = set(["input_example", "signature"])
+
+    assert _is_valid_flavor(flavor), f"Failed to validate model flavor. Bad model flavor '{flavor}'."
+    assert hasattr(mlflow, flavor), f"Failed to log model. Could not find flavor '{flavor}' in mlflow." 
+
+    flavor_module =eval(f"mlflow.{flavor}" )
+    assert callable(getattr(flavor_module, log_model_function_name)), f"Failed to log model. Flavor '{flavor}' does not have {log_model_function_name} method."
+
+    log_model_function = eval(f"mlflow.{flavor}.{log_model_function_name}")
+
+    # Get log_model function required args
+    log_function_required_args_set = set(_get_required_log_model_args(log_model_function))
+    # remove kwargs
+    log_function_required_args_set -= set(["kwargs"])
+    
+    # Create set with all required args.
+    all_required_args_set = set.union(sb_required_args_set, log_function_required_args_set)
+    
+    user_kwargs_set = set(kwargs.keys())
+    #print("[DEBUG] All required args", all_required_args_set)
+    
+    missing_args = all_required_args_set - user_kwargs_set
+
+    #print("[DEBUG] MISSING ARGS:", missing_args)
+    assert len(missing_args) == 0, f"Failed to log model. Missing arguments {missing_args}"
+
+    # Log the model
+    active_run = mlflow.active_run()
+    if not active_run:
+        active_run = mlflow.start_run()
+        log_model_function(**kwargs)
+        mlflow.end_run()
+    else:
+        log_model_function(**kwargs)
+
+    return active_run

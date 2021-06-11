@@ -11,8 +11,8 @@ def pytest_sessionstart(session):
         os.environ.setdefault("MLFLOW_TRACKING_URI", MLFLOW_TRACKING_URI)
         run_id = train.main()
         os.environ.setdefault("SHIPPED_BRAIN_TEST_RUN_ID", run_id.info.run_id)
-    except:
-        print("[EXCEPTION] Failed to run startup routine!")
+    except Exception as e:
+        print(f"[EXCEPTION] Failed to run startup routine! Error: {e}")
 
 def pytest_sessionfinish(session, exitstatus):
     print("\n[TEARDOWN] Deleting mlruns. Test run_id:", os.environ.get("SHIPPED_BRAIN_TEST_RUN_ID"))
