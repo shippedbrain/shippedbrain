@@ -116,7 +116,7 @@ def main(log_model_option: dict = {"flavor": "mlflow"}, run_inside_mlflow_contex
 
             # Model registry does not work with file store
             print("[DEBUG] Log model option flavor:", log_model_option["flavor"])
-            if log_model_option["flavor"] == "_log_model":
+            if log_model_option["flavor"] == "_log_flavor":
                 _ = shippedbrain._log_flavor("sklearn", sk_model = lr, signature = signature, input_example = log_model_option["input_example"], artifact_path="model")
             # INTEGRATION
             elif log_model_option["flavor"] == "upload_model" or log_model_option["flavor"] == "upload_run":
@@ -124,7 +124,7 @@ def main(log_model_option: dict = {"flavor": "mlflow"}, run_inside_mlflow_contex
                 log_model_option.pop("flavor")
                 log_func = eval(f"shippedbrain.{flavor}")
                 _ = log_func(**log_model_option)
-            else:
+            elif log_model_option["flavor"] == "mlflow":
                 mlflow.sklearn.log_model(lr, "model", signature=signature, input_example=log_model_option["input_example"])
 
             print(f"[INFO] Model URI runs:/{run.info.run_id}/model\n")
@@ -132,7 +132,7 @@ def main(log_model_option: dict = {"flavor": "mlflow"}, run_inside_mlflow_contex
         return run
 
     else:
-        if log_model_option["flavor"] == "_log_model":
+        if log_model_option["flavor"] == "_log_flavor":
             run = shippedbrain._log_flavor("sklearn",
                                            sk_model=lr,
                                            signature=signature,

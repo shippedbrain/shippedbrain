@@ -160,16 +160,16 @@ class TestShippedBrain:
         artifacts_result = client.list_artifacts(logged_run.info.run_id)
         assert artifacts_base == artifacts_result
 
-    def test__log_model_inside_run_context(self):
-        log_model_option = {"flavor": "_log_model"}
+    def test__log_flavor_inside_run_context(self):
+        log_model_option = {"flavor": "_log_flavor"}
 
         run = train.main(log_model_option=log_model_option, run_inside_mlflow_context=True)
 
         assert shippedbrain._validate_run_id(client, run.info.run_id), "Run id is not valid"
         assert shippedbrain._validate_model(run.info.run_id), "Logged model is not valid"
 
-    def test__log_model_outside_run_context(self):
-        log_model_option = {"flavor": "_log_model"}
+    def test__log_flavor_outside_run_context(self):
+        log_model_option = {"flavor": "_log_flavor"}
 
         run = train.main(log_model_option=log_model_option, run_inside_mlflow_context=False)
 
