@@ -2,39 +2,107 @@
 ### Client library to publish models on [app.shippedbrain.com](app.shippedbrain.com)
 Create **serverless REST endpoints** for machine learning models and get **hosted web pages** instantly.
 
-Using the CLI:
+#### Using the CLI:
 
 `shippedbrain upload --model_name My-Amazing-Model --run_id 6f252757005748708cd3aad75d1ff462`
 
-Using the Python API:
+#### Using the Python API:
 
-```
+Uploading a logged mlflow model from and existing `run_id` using the `shippedbrain.upload_run` function
+```python
+import pandas as pd
+from sklearn import datasets
+from sklearn.ensemble import RandomForestClassifier
+import mlflow
+import numpy as np
+import mlflow.sklearn
+from mlflow.models.signature import infer_signature
+
 from shippedbrain import shippedbrain
 
-# cutom code...
+iris = datasets.load_iris()
+iris_train = pd.DataFrame(iris.data, columns=iris.featuhre_names)
 
-shippedbrain.upload(email=<your_email>, password=<your_password>, run_id=<some_run_id>, model_name=<your_model_name>)
+    # each input has shape (4, 4)
+input_example = np.array([
+       [[  0,   0,   0,   0],
+        [  0, 134,  25,  56],
+        [253, 242, 195,   6],
+        [  0,  93,  82,  82]],
+       [[  0,  23,  46,   0],
+        [ 33,  13,  36, 166],
+        [ 76,  75,   0, 255],
+        [ 33,  44,  11,  82]]
+    ], dtype=np.uint8)
+    
+with mlflow.start_run(run_name="YOUR_RUN_NAME") as run:
+    clf = RandomForestClassifier(max_depth=7, random_state=0)
+    clf.fit(iris_train, iris.target)
+    signature = infer_signature(iris_train, clf.predict(iris_train))
+    mlflow.sklearn.log_model(clf, "iris_rf", signature=signature, input_example=input_example)
+    
+
+  shippedbrain.upload_run(
+      run_id=run.info.run_id,
+      email="YOUR_EMAIL", # can be left blank if env. var. SHIPPED_BRAIN_EMAIL is set
+      password="YOUR_PASSWORD", # can be left blank if env. var. SHIPPED_BRAIN_PASSWORD is set
+      model_name="YOUR_MODEL_NAME"
+  )
+```
+
+Uploading a Random Forest model in scikit-learn using the `shippedbrain.upload_model` function
+```python
+from shippedbrain import shippedbrain
+import pandas as pd
+from sklearn import datasets
+from sklearn.ensemble import RandomForestClassifier
+from mlflow.models.signature import infer_signature
+
+iris = datasets.load_iris()
+iris_train = pd.DataFrame(iris.data, columns=iris.feature_names)
+clf = RandomForestClassifier(max_depth=7, random_state=0)
+clf.fit(iris_train, iris.target)
+
+signature = infer_signature(iris_train, clf.predict(iris_train))
+
+input_example = {
+  "sepal length (cm)": 5.1,
+  "sepal width (cm)": 3.5,
+  "petal length (cm)": 1.4,
+  "petal width (cm)": 0.2
+}
+
+# Upload the sklearn model
+shippedbrain.upload_model(
+    email="YOUR_EMAIL", # can be left blank if env. var. SHIPPED_BRAIN_EMAIL is set
+    password="YOUR_PASSWORD", # can be left blank if env. var. SHIPPED_BRAIN_PASSWORD is set
+    model_name="MODEL_NAME",
+    signature=signature,
+    input_example=input_example,
+    sk_model=clf, # named arg. required by mlflow.sklearn.log_model
+    artifact_path="sklearn-model" # named arg. required by mlflow.sklearn.log_model
+)
 ```
 
 # Shipped Brain
-[Shipped Brain](shippedbrain.com) is an AI platform that allows anyone to share and upload machine lerning models fast and easily.
+[Shipped Brain](shippedbrain.com) is an AI platform that allows anyone to share and upload machine learning models fast and easily.
 
 ![Benefits](./static/benefits.png)
 
-### Managed REST API endpoints
-####Use anywhere
+## Managed REST API endpoints
+### Use anywhere
 When a model is published on [app.shippedbrain.com](app.shippedbrain.com) it gets its unique and standardized REST API endpoint automatically that can be embedded anywhere.
 
 To use a shipped brain model you just need to make an HTTP POST request to the model's endpoint:
 
 ```app.shippedbrain.com/api/v0/<your-model-name>/<version>```
 
-* Straightfoward deployments with one line of code 
+* Straightforward deployments with one line of code 
 * Public REST endpoints that anyone can try and verify - managed for you
 * No serving code and zero configuration
 
-### Hosted Model Pages
-####Interactive web pages to get started easily
+## Hosted Model Pages
+### Interactive web pages to get started easily
 An interactive web page for every model - automatically created and hosted for you.
 
 Share your models' web pages and allow anyone to experiment with your models in the browser or using the REST API.
@@ -45,8 +113,8 @@ Share your models' web pages and allow anyone to experiment with your models in 
 
 ![Model Page](./static/model_page.png)
 
-### Data Science Portfolio
-**Build a home for your AI.**
+## Data Science Portfolio
+### Build a home for your AI
 
 Start creating your data science portfolio. Share you Shipped Brain profile with other AI specialists, companies or include it in your resumé. Your shipped brain profiles is a great way to showcase all your models.
 
@@ -58,40 +126,53 @@ Start creating your data science portfolio. Share you Shipped Brain profile with
 ## About `shippedbrain`
 The `shippedbrain` client library provides a convenient way to publish models on [app.shippedbrain.com](app.shippedbrain.com).
 
-It integrates with the widely used `mlflow` library, so any `mlflow` model will work on shipped brain. To publish a model on [app.shippedbrain.com](app.shippedbrain.com) you just need to provide a valid `mlflow` **run_id** of a logged model.  You can easily log models with `mlflow` using `mlflow.log_model`.
+It integrates with the widely used `mlflow` library, so any `mlflow` model will work on shipped brain.
 
-For more information on how to log models with `mlflow`read the [documentation](https://www.mlflow.org/docs/latest/models.html)
+### Model Publish Workflows
+There are 2 main ways in which you can publish models onto shipped brain:
+* Publish a trained model using the `shippedbraun.upload_model` function
+* Publish a model from an existing `mlfow` logged model run, via the CLI command `shippedbrain upload` or Python API using the `shippedbrain.upload_run` function
 
-Once you've logged your model you just need to refer the **mlflow `run_id`** when uploading a model to shipped brain.
-####CLI Example
-`shippedbrain upload --run_id <some_run_id> --model_name <my-model-name>`
+> For more information on how to log models with `mlflow`read the [documentation](https://www.mlflow.org/docs/latest/models.html)
 
 ## Usage
 The `shippedbrain` client library has a **Python API** and **CLI** flavors.
 
+##### Use environment variables to set your shipped brain email and password (advised)
+* `SHIPPED_BRAIN_EMAIL`
+* `SHIPPED_BRAIN_PASSWORD`
+
+#### Shipped Brain models signature and input example
+All models published on [app.shippedbrain.com](app.shippedbrain.com) have a valid **mlflow** `input_example` and `signature`
+
+When working with ML models you often need to know some basic functional properties of the model at hand, such as “What inputs does it expect?” and “What output does it produce?”. MLflow models can include the following additional metadata about model inputs and outputs that can be used by downstream tooling:
+* [Model Signature](https://mlflow.org/docs/latest/models.html#model-signature) - description of a model’s inputs and outputs. 
+* [Model Input Example](https://mlflow.org/docs/latest/models.html#input-example) - example of a valid model input.
+
+
 ### CLI
 `shippedbrain [OPTIONS] COMMAND [ARGS]...`
 
-####Commands
-```
-upload - Deploy a model to app.shippedbrain.com : create a REST endpoint and hosted model page
-```
-##### Environment variables (advised)
-* `SHIPPED_BRAIN_EMAIL` to skip de email prompt.
-* `SHIPPED_BRAIN_PASSWORD` to skip de passoword prompt.
+#### Commands
+
+`upload` - Deploy a model to app.shippedbrain.com : create a REST endpoint and hosted model page
+
 
 #### `upload` command
 Deploy a model to [app.shippedbrain.com](app.shippedbrain.com) - create a REST endpoint and get a hosted model web page
 
-#####Options:
-```
-  -r, --run_id TEXT      The run_id of logged mlflow model  [required]
-  -m, --model_name TEXT  The model name to display on app.shippedbrain.com [required]
-  -f, --flavor TEXT      The mlflow flow flavor of the model
-  --help                 Get help on how to use the 'upload' command
-```
+##### Options:
 
-#####Example:
+* `-r`, `--run_id` (**TEXT**) - The run_id of logged mlflow model  [required]
+* `-m`, `--model_name` (**TEXT**) - The model name to display on app.shippedbrain.com [required]
+* `-f`, `--flavor` (**TEXT**) - The mlflow flow flavor of the model
+* `--help` - Get help on how to use the 'upload' command
+
+**NB:** The model must have been logged with valid `input_example` and `signature`. For more information refer to the official mlflow documentation:
+* [MLflow Model Input Example](https://mlflow.org/docs/latest/models.html#input-example)
+* [MLflow Model Signature](https://mlflow.org/docs/latest/models.html#model-signature)
+
+##### Example:
 Run:
 
 `shippedbrain upload --run_id <some_run_id> --model_name <my-model-name>`
@@ -106,28 +187,89 @@ password:
 
 If the environment variables `SHIPPED_BRAIN_EMAIL` or `SHIPPED_BRAIN_PASSWORD` are set, the respective prompt options will be skipped.
 
-### Python API
-To publish a model programatically you just need call the `shippedbrain.upload` function.
+Example:
 
-####`shippedbrain.upload`
-#####Arguments:
-* `email` (**str**) - shipped brain account email
-* `password` (**str**) - shipped brain account password
-* `run_id` (**str**) - run_id of logged mlflow model
-* `model_name` (**str**) - model name to display on app.shippedbrain.com
+`shippedbrain upload --run_id 6f252757005748708cd3aad75d1ff462 --model_name Some-Model-Name`
+
+### Python API
+To publish a model programmatically you can either use the `shippedbrain.upload_run` or  `shippedbrain.upload_model` functions.
+
+####`shippedbrain.upload_run`
+Publish a model from an existing `mlflow` log model run. 
+##### Arguments:
+* `run_id` (**str**) - run_id of logged model `mlflow` run
+* `email` (**str**) - shipped brain account email; if `SHIPPED_BRAIN_EMAIL` is set, argument can be left blank
+* `password` (**str**) - shipped brain account password; if `SHIPPED_BRAIN_PASSWORD` is set, argument can be left blank
+* `model_name` (**str**) - model name to display on [app.shippedbrain.com](app.shippedbrain.com)
 
 ##### Example
-You can easily publish a model with one line of code:
-
 ```python
 from shippedbrain import shippedbrain
+from sklearn.ensemble import RandomForestRegressor
+import mlflow
 
-# your custom code ...
-shippedbrain.upload_run(email="<your@email.com>", password="<your_password>", model_name="<model-name>",
-                        run_id="<model-run-id>")
+with mlflow.start_run(run_name="YOUR_RUN_NAME") as run:
+  params = {"n_estimators": 5, "random_state": 42}
+  sk_learn_rfr = RandomForestRegressor(**params)
+
+  shippedbrain.upload_run(
+    run_id=run.info.run_id,
+    email="YOUR_EMAIL", # can be left blank if env. var. SHIPPED_BRAIN_EMAIL is set
+    password="YOUR_PASSWORD", # can be left blank if env. var. SHIPPED_BRAIN_PASSWORD is set
+    model_name="YOUR_MODEL_NAME"
+  )
 ```
 
-###End-to-end example
+####`shippedbrain.upload_model`
+Publish a trained model directly to [app.shippedbrain.com](app.shippedbrain.com). 
+##### Arguments:
+* `flavor`: (**str**) - valid mlflow model flavor; refer to the [original mlflow documentation](https://mlflow.org/docs/latest/python_api/index.html#python-api)
+* `email` (**str**) - shipped brain account email; if "SHIPPED_BRAIN_EMAIL" is set, argument can be left blank
+* `password` (**str**) - shipped brain account password; if "SHIPPED_BRAIN_PASSWORD" is set, argument can be left blank
+* `model_name` (**str**) - model name to display on [app.shippedbrain.com](app.shippedbrain.com)
+* `input_example` (**pandas.DataFrames | numpy.ndarrays**)- model inputs can be column-based (i.e DataFrames) or tensor-based (i.e numpy.ndarrays). A model input example provides an instance of a valid model input. More info. in [MLflow Model Input Example](https://mlflow.org/docs/latest/models.html#input-example)
+* `signature` (**mlflow.types.schema.Schema**) - the Model signature defines the schema of a model’s inputs and outputs. Model inputs and outputs can be either column-based or tensor-based. Column-based inputs and outputs can be described as a sequence of (optionally) named columns with type specified. ModelSignature can be [inferred](https://mlflow.org/docs/latest/python_api/mlflow.models.html#mlflow.models.infer_signature) from training dataset and model predictions using or constructed by hand by passing an input and output (Schema)[https://mlflow.org/docs/latest/python_api/mlflow.types.html#mlflow.types.Schema].
+
+  More info in [MLflow Model Signature](https://mlflow.org/docs/latest/models.html#model-signature)
+* `**kwargs` - named arguments required by the selected `flavor`
+
+The `kwargs` arguments depends on the `flavor` argument. Please verify the required named arguments of the select flavor in [MLflow Python API](https://mlflow.org/docs/latest/python_api/index.html#python-api).
+
+##### Example
+```python
+from shippedbrain import shippedbrain
+import pandas as pd
+from sklearn import datasets
+from sklearn.ensemble import RandomForestClassifier
+from mlflow.models.signature import infer_signature
+
+iris = datasets.load_iris()
+iris_train = pd.DataFrame(iris.data, columns=iris.feature_names)
+clf = RandomForestClassifier(max_depth=7, random_state=0)
+clf.fit(iris_train, iris.target)
+
+signature = infer_signature(iris_train, clf.predict(iris_train))
+
+input_example = {
+  "sepal length (cm)": 5.1,
+  "sepal width (cm)": 3.5,
+  "petal length (cm)": 1.4,
+  "petal width (cm)": 0.2
+}
+
+# Upload the sklearn model
+shippedbrain.upload_model(
+    email="YOUR_EMAIL", # can be left blank if env. var. SHIPPED_BRAIN_EMAIL is set
+    password="YOUR_PASSWORD", # can be left blank if env. var. SHIPPED_BRAIN_PASSWORD is set
+    model_name="MODEL_NAME",
+    signature=signature,
+    input_example=input_example,
+    sk_model=clf,
+    artifact_path="sklearn-model"
+)
+```
+
+### Run and end-to-end example from this repo
 You can find an example under the `./examples/elastic_net` directory.
 * `train_and_log.py`: trains linear model and logs it to mlflow
 * `requirements.txt`: python requirements to run example
