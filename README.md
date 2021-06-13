@@ -2,7 +2,7 @@
 ### Client library to publish models on [app.shippedbrain.com](app.shippedbrain.com)
 Create **serverless REST endpoints** for machine learning models and get **hosted web pages** instantly.
 
-`pip install shipepdbrain`
+`pip install shippedbrain`
 
 #### Using the CLI:
 
