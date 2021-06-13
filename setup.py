@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-VERSION = '0.0.4'
+VERSION = '0.0.5'
 DESCRIPTION = 'Client library to create serverless REST endpoints on shippedbrain.com'
 LONG_DESCRIPTION = open("README.md", "r", encoding="utf-8").read()
 
@@ -22,7 +22,7 @@ setup(name="shippedbrain",
       long_description=LONG_DESCRIPTION,
       long_description_content_type="text/markdown",
       packages=find_packages(),
-      python_requires=">=3.8.0",
+      python_requires=">=3.6.0",
       install_requires=install_requires,
       extras_require=extras_require,
       keywords=['pretrained-models', 'shipped-brain', 'machine-learning', 'artificial-intelligence', 'deploy', 'serve', "serverless", "model-hub", "data-science", 'mlflow'],
