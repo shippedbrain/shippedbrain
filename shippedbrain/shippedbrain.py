@@ -312,6 +312,7 @@ def upload_model(flavor: str,
     """ Publish trained model to shipped brain
 
     """
+    assert _is_valid_flavor(flavor), f"Failed to validate model flavor. Bad model flavor '{flavor}'."
 
     email = email if email else os.getenv("SHIPPED_BRAIN_EMAIL")
     password = password if password else os.getenv("SHIPPED_BRAIN_PASSWORD")
