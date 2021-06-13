@@ -48,24 +48,7 @@ def train_and_eval(alpha, l1_ratio, train_x, train_y, test_x, test_y):
 
     return lr, predicted_qualities, signature, rmse, mae, r2
 
-# if __name__ == "__main__":
-def main(log_model_option: dict = {"flavor": "mlflow"}, run_inside_mlflow_context: bool = True):
-    """ Train and log model
-
-    :param log_model_option: Log model using options:
-                             if {"flavor": "mlflow"}: log model using mlflow log_model method
-                             else if {"flavor": "_log_model"} log model using shipped brain _log_model function
-                             else ig {"flavor": "upload_run" | "upload_model", args...} log model using named function with args
-                             NB: input_example and signature are not required
-    :param run_inside_mlflow_context: if True run log method from mlflow run context,
-                                      otherwise use shippedbrain.log_flavor outside without mlflow run context
-    """
-    warnings.filterwarnings("ignore")
-    np.random.seed(46)
-    
-
-    print("MLflow Tracking URI:", mlflow.get_tracking_uri())
-
+def build_train():
     # Read the wine-quality csv file from the URL
     # data = pd.read_csv("./tests/resources/data/winequality-red.csv", sep=",", header=True)
     csv_url = (
@@ -88,10 +71,36 @@ def main(log_model_option: dict = {"flavor": "mlflow"}, run_inside_mlflow_contex
     train_y = train[["quality"]]
     test_y = test[["quality"]]
 
-    alpha = float(sys.argv[1]) if len(sys.argv) > 1 else 0.5
-    l1_ratio = float(sys.argv[2]) if len(sys.argv) > 2 else 0.5
+    alpha = 0.5
+    l1_ratio = 0.5
 
-    lr, predicted_qualities, signature, rmse, mae, r2 = train_and_eval(alpha, l1_ratio, train_x, train_y, test_x, test_y)
+    return train_x, train_y, test_x, test_y, alpha, l1_ratio
+
+def main(log_model_option: dict = {"flavor": "mlflow"}, run_inside_mlflow_context: bool = True):
+    """ Train and log model
+
+    :param log_model_option: Log model using options:
+                             if {"flavor": "mlflow"}: log model using mlflow log_model method
+                             else if {"flavor": "_log_model"} log model using shipped brain _log_model function
+                             else ig {"flavor": "upload_run" | "upload_model", args...} log model using named function with args
+                             NB: input_example and signature are not required
+    :param run_inside_mlflow_context: if True run log method from mlflow run context,
+                                      otherwise use shippedbrain.log_flavor outside without mlflow run context
+    """
+    warnings.filterwarnings("ignore")
+    np.random.seed(46)
+    
+
+    print("MLflow Tracking URI:", mlflow.get_tracking_uri())
+
+    train_x, train_y, test_x, test_y, alpha, l1_ratio = build_train()
+
+    lr, predicted_qualities, signature, rmse, mae, r2 = train_and_eval(alpha,
+                                                                       l1_ratio,
+                                                                       train_x,
+                                                                       train_y,
+                                                                       test_x,
+                                                                       test_y)
 
     log_model_option["signature"] = signature
     log_model_option["input_example"] = test_x.iloc[0:2]
@@ -111,8 +120,6 @@ def main(log_model_option: dict = {"flavor": "mlflow"}, run_inside_mlflow_contex
             mlflow.log_metric("rmse", rmse)
             mlflow.log_metric("r2", r2)
             mlflow.log_metric("mae", mae)
-
-            tracking_url_type_store = urlparse(mlflow.get_tracking_uri()).scheme
 
             # Model registry does not work with file store
             print("[DEBUG] Log model option flavor:", log_model_option["flavor"])

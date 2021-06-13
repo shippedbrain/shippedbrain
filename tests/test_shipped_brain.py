@@ -5,7 +5,7 @@ import tempfile
 from shippedbrain import shippedbrain
 import os
 import mlflow
-from tests import MODEL_NAME, MLRUNS_PATH, LOGIN_URL_HTTP_BIN, UPLOAD_URL_HTTP_BIN
+from tests import MODEL_NAME, MLRUNS_PATH, LOGIN_URL_HTTP_BIN, UPLOAD_URL_HTTP_BIN, LOGIN_URL_HTTP, UPLOAD_URL_HTTP
 import tests.resources.train as train
 
 client = mlflow.tracking.MlflowClient()
@@ -176,6 +176,47 @@ class TestShippedBrain:
         assert shippedbrain._validate_run_id(client, run.info.run_id), "Run id is not valid"
         assert shippedbrain._validate_model(run.info.run_id), "Logged model is not valid"
 
-    # TODO integration test
-    # def test_upload(self):
-    #     shippedbrain.upload(RUN_ID, "Test-Model-46", "bernardo@shippedbrain.com", "password", login_url=LOGIN_URL_HTTP_BIN, upload_url=UPLOAD_URL_HTTP_BIN)
+    def test_upload_run(self):
+        response = shippedbrain.upload_run(run_id=RUN_ID,
+                                           model_name="Test-Model-upload_run",
+                                           email="bernardo@shippedbrain.com",
+                                           password="password",
+                                           login_url=LOGIN_URL_HTTP,
+                                           upload_url=UPLOAD_URL_HTTP)
+
+        assert response.status_code == 200
+
+    def test_upload_model(self):
+        train_x, train_y, test_x, test_y, alpha, l1_ratio = train.build_train()
+
+        lr, predicted_qualities, signature, rmse, mae, r2 = train.train_and_eval(alpha,
+                                                                                  l1_ratio,
+                                                                                  train_x,
+                                                                                  train_y,
+                                                                                  test_x,
+                                                                                  test_y)
+        input_example = test_x.iloc[0:2]
+
+        MAX_RETRIES = 3
+        curr_try = 0
+        import  time
+        while curr_try < MAX_RETRIES:
+            curr_try += 1
+            response = shippedbrain.upload_model(flavor="sklearn",
+                                                 model_name="Test-Model-upload_model",
+                                                 email="bernardo@shippedbrain.com",
+                                                 password="password",
+                                                 signature=signature,
+                                                 input_example=input_example,
+                                                 sk_model=lr,
+                                                 artifact_path="model",
+                                                 login_url=LOGIN_URL_HTTP,
+                                                 upload_url=UPLOAD_URL_HTTP
+                                                 )
+            # FORBIDDEN, server upload concurrency restrictions
+            if response.status_code == 403:
+                time.sleep(2 ** curr_try)
+            else:
+                break
+        assert response.status_code == 200
+
