@@ -132,7 +132,7 @@ It integrates with the widely used `mlflow` library, so any `mlflow` model will 
 
 ### Model Publish Workflows
 There are 2 main ways in which you can publish models onto shipped brain:
-* Publish a trained model using the `shippedbraun.upload_model` function
+* Publish a trained model using the `shippedbrain.upload_model` function
 * Publish a model from an existing `mlfow` logged model run, via the CLI command `shippedbrain upload` or Python API using the `shippedbrain.upload_run` function
 
 > For more information on how to log models with `mlflow`read the [documentation](https://www.mlflow.org/docs/latest/models.html)
@@ -157,7 +157,7 @@ When working with ML models you often need to know some basic functional propert
 
 #### Commands
 
-`upload` - Deploy a model to app.shippedbrain.com : create a REST endpoint and hosted model page
+`upload` - Deploy a model to [app.shippedbrain.com](app.shippedbrain.com) : create a REST endpoint and hosted model page
 
 
 #### `upload` command
@@ -166,7 +166,7 @@ Deploy a model to [app.shippedbrain.com](app.shippedbrain.com) - create a REST e
 ##### Options:
 
 * `-r`, `--run_id` (**TEXT**) - The run_id of logged mlflow model  [required]
-* `-m`, `--model_name` (**TEXT**) - The model name to display on app.shippedbrain.com [required]
+* `-m`, `--model_name` (**TEXT**) - The model name to display on [app.shippedbrain.com](app.shippedbrain.com) [required]
 * `-f`, `--flavor` (**TEXT**) - The mlflow flow flavor of the model
 * `--help` - Get help on how to use the 'upload' command
 
@@ -287,13 +287,9 @@ Run the example:
 
 You can omit the `--publish` flag if you do not want your model to be published on [app.shippedbrain.com](app.shippedbrain.com)
 
-**Output example:**
-```
-```
-
 #### Using the CLI
-To upload the trained model to app.shippedbrain.com you just need to collect the `run_id` of the logged model:
-* `--model_name` - specify the model name published on app.shippedbrain.com
+To upload the trained model to [app.shippedbrain.com](app.shippedbrain.com) you just need to collect the `run_id` of the logged model:
+* `--model_name` - specify the model name published on [app.shippedbrain.com](app.shippedbrain.com)
 * `--run_id` - the **run_id** of the logged model 
 
 Run: `shippedbrain upload --model_name ElasticWine --run_id <some_run_id>`
