@@ -23,19 +23,10 @@ from mlflow.models.signature import infer_signature
 from shippedbrain import shippedbrain
 
 iris = datasets.load_iris()
-iris_train = pd.DataFrame(iris.data, columns=iris.featuhre_names)
+iris_train = pd.DataFrame(iris.data, columns=iris.feature_names)
 
     # each input has shape (4, 4)
-input_example = np.array([
-       [[  0,   0,   0,   0],
-        [  0, 134,  25,  56],
-        [253, 242, 195,   6],
-        [  0,  93,  82,  82]],
-       [[  0,  23,  46,   0],
-        [ 33,  13,  36, 166],
-        [ 76,  75,   0, 255],
-        [ 33,  44,  11,  82]]
-    ], dtype=np.uint8)
+input_example = input_example = iris_train.head()
     
 with mlflow.start_run(run_name="YOUR_RUN_NAME") as run:
     clf = RandomForestClassifier(max_depth=7, random_state=0)
@@ -43,8 +34,7 @@ with mlflow.start_run(run_name="YOUR_RUN_NAME") as run:
     signature = infer_signature(iris_train, clf.predict(iris_train))
     mlflow.sklearn.log_model(clf, "iris_rf", signature=signature, input_example=input_example)
     
-
-  shippedbrain.upload_run(
+shippedbrain.upload_run(
       run_id=run.info.run_id,
       email="YOUR_EMAIL", # can be left blank if env. var. SHIPPED_BRAIN_EMAIL is set
       password="YOUR_PASSWORD", # can be left blank if env. var. SHIPPED_BRAIN_PASSWORD is set
