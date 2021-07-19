@@ -5,13 +5,15 @@ from datetime import datetime
 import shutil
 import os
 import tempfile
-from typing import Optional
+from typing import Optional, Union
 import requests
 import json
 import uuid
 import re
 from shippedbrain import LOGIN_URL, UPLOAD_URL
 import inspect
+import pandas
+import numpy
 
 flavors = {
     "pyfunc": mlflow.pyfunc,
@@ -118,6 +120,12 @@ def _validate_model(run_id: str) -> bool:
 
 
 def _get_model_artifacts_path(run_id: str):
+    """ Get model artifacts' path from run_id
+
+    :param run_id: model's run_id
+    
+    :return: (str) artifacts path
+    """
     try:
         logged_model = _get_logged_model(run_id)
         return logged_model['artifact_path']
@@ -140,7 +148,7 @@ def _download_artifacts(mlflow_client: mlflow.tracking.MlflowClient,
     mlflow_client.download_artifacts(run_id=run_id, path=model_artifacts, dst_path=tmpdirname)
 
 
-def _create_shipped_brain_yaml(model_name: str, model_artifacts_path: str, flavor: str, target_dir) -> str:
+def _create_shipped_brain_yaml(model_name: str, model_artifacts_path: str, flavor: str, target_dir, metrics: dict = {}, params: dict = {}) -> str:
     """ Create a shipped-brain.yaml file in models artifacts
 
     :param model_name: the model's name on app.shippedbrain.com
@@ -153,7 +161,10 @@ def _create_shipped_brain_yaml(model_name: str, model_artifacts_path: str, flavo
     shipped_brain_yaml_file = os.path.join(target_dir, "shipped-brain.yaml")
     shipped_brain_yaml = {"model_name": model_name,
                           "model_artifacts_path": model_artifacts_path,
-                          "flavor": flavor}
+                          "flavor": flavor,
+                          "metrics": metrics,
+                          "params": params}
+
     with open(shipped_brain_yaml_file, "w") as yaml_file:
         yaml.dump(shipped_brain_yaml, yaml_file)
 
@@ -219,7 +230,8 @@ def _unzip_artifacts(zipfile: str, target_dir: str) -> None:
     try:
         os.remove(os.path.join(target_dir, file_name))
     except:
-        print(f"Could not remove file {os.path.join(target_dir, file_name)} - target_dir='{target_dir}' file_name='{file_name}")
+        print(f"Failed to unpack file {os.path.join(target_dir, file_name)} - "
+              f"target_dir='{target_dir}' file_name='{file_name}")
 
     print("Archive file unpacked successfully.")
 
@@ -283,7 +295,7 @@ def _is_valid_flavor(flavor: str) -> bool:
     return flavors.get(flavor) is not None
 
 
-def _log_model(artifacts_path: str, model_artifacts_dir: str) -> mlflow.entities.Run:
+def _log_model(artifacts_path: str, model_artifacts_dir: str, metrics: Optional[dict] = None, params: Optional[dict] = None) -> mlflow.entities.Run:
     """ Log model from MLmodel file
 
     :param artifacts_path: absolute artifact dir. path
@@ -296,14 +308,38 @@ def _log_model(artifacts_path: str, model_artifacts_dir: str) -> mlflow.entities
         _update_MLmodel(run.info.run_id, artifacts_path, model_artifacts_dir)
         # USE mlflow.log_artifacts, otherwise root dir. is also copied
         mlflow.log_artifacts(artifacts_path)
+        if params:
+            mlflow.log_params(params)
+        if metrics:
+            mlflow.log_metrics(metrics)
 
     return run
 
+def _get_run_metrics(mlflow_client: mlflow.tracking.MlflowClient, run_id: str):
+    """ Get metric from run_id
+    """
+    try:
+        run = mlflow_client.get_run(run_id)
+        
+        return run.data.metrics
+    except Exception as e:
+        raise Exception(f"Could not get metrics from model with run id '{run_id}'.")
+
+
+def _get_run_params(mlflow_client: mlflow.tracking.MlflowClient, run_id: str):
+    """ Get params from run_id
+    """
+    try:
+        run = mlflow_client.get_run(run_id)
+        
+        return run.data.params
+    except Exception as e:
+        raise Exception(f"Could not get params from model with run id '{run_id}'.")
 
 def upload_model(flavor: str,
                  model_name: str,
-                 input_example,
-                 signature,
+                 input_example: Optional[Union[pandas.core.frame.DataFrame, numpy.ndarray, dict, list]],
+                 signature: mlflow.models.signature.ModelSignature,
                  email: Optional[str] = None,
                  password: Optional[str] = None,
                  login_url: str = LOGIN_URL,
@@ -311,15 +347,27 @@ def upload_model(flavor: str,
                  **kwargs) -> requests.Response:
     """ Publish trained model to shipped brain
 
+    :param flavor: flavor of the logged model; must be a valid mlflow flavor
+    :param model_name: name of the model to publish on app.shippedbrain.com
+    :param signature: ModelSignature describes model input and output Schema. The model signature can be inferred from
+    datasets with valid model input and valid model output
+    :param email: shipped brain account email
+    :param password: shipped brain account password
+    :param login_url: login url to shipped brain
+    :param upload_url: upload_url to shipped brain
+    :param **kwargs: required named arguments by the mlflow.<flavor>.log_model function
     """
     assert _is_valid_flavor(flavor), f"Failed to validate model flavor. Bad model flavor '{flavor}'."
 
     email = email if email else os.getenv("SHIPPED_BRAIN_EMAIL")
     password = password if password else os.getenv("SHIPPED_BRAIN_PASSWORD")
 
-    assert email, f"Bad email. Environment variable SHIPPED_BRAIN_EMAIL is not defined or you did not provide the email argument."
-    assert password,f"Bad password. Environment variable SHIPPED_BRAIN_PASSWORD is not defined or you did not provide the password argument."
-    assert _validate_model_name(model_name), f"Bad model name '{model_name}! Please provide a valid model name"
+    assert email,\
+        f"Bad email. Environment variable SHIPPED_BRAIN_EMAIL is not defined or you did not provide the email argument."
+    assert password,\
+        f"Bad password. Environment variable SHIPPED_BRAIN_PASSWORD is not defined or you did not provide the " \
+        f"password argument."
+    assert _validate_model_name(model_name), f"Bad model name '{model_name}'! Please provide a valid model name"
 
     model_run = _log_flavor(flavor=flavor, input_example=input_example, signature=signature, **kwargs)
 
@@ -350,9 +398,9 @@ def upload_run(run_id: str,
     :param model_name: name of the model to publish on app.shippedbrain.com
     :param email: shipped brain account email
     :param password: shipped brain account password
-    :param flavor: flavor of the logged model
-    :param login_url: login url
-    :param upload_url: upload_url
+    :param flavor: flavor of the logged model; must be a valid mlflow flavor
+    :param login_url: login url to shipped brain
+    :param upload_url: upload_url to shipped brain
 
     :return: model upload requests.Response from app.shippedbrain.com
     """
@@ -362,17 +410,23 @@ def upload_run(run_id: str,
     email = email if email else os.getenv("SHIPPED_BRAIN_EMAIL")
     password = password if password else os.getenv("SHIPPED_BRAIN_PASSWORD")
 
-    assert email, f"Bad email. Environment variable SHIPPED_BRAIN_EMAIL is not defined or you did not provide the email argument."
-    assert password,f"Bad password. Environment variable SHIPPED_BRAIN_PASSWORD is not defined or you did not provide the password argument."
+    assert email,\
+        f"Bad email. Environment variable SHIPPED_BRAIN_EMAIL is not defined or you did not provide the email argument."
+    assert password,\
+        f"Bad password. Environment variable SHIPPED_BRAIN_PASSWORD is not defined or you did not provide the" \
+        f" password argument."
     assert _validate_model_name(model_name), f"Bad model name '{model_name}! Please provide a valid model name"
     assert _validate_run_id(client, run_id), f"The run id '{run_id}' you provided is not valid!"
     assert _validate_model(run_id), f"The model with '{run_id}' is not valid!"
 
     model_artifacts_path = _get_model_artifacts_path(run_id)
+    
+    model_metrics = _get_run_metrics(client, run_id) 
+    model_params = _get_run_params(client, run_id)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         _download_artifacts(client, run_id, tmpdir)
-        _create_shipped_brain_yaml(model_name, model_artifacts_path, flavor_name[flavor], tmpdir)
+        _create_shipped_brain_yaml(model_name, model_artifacts_path, flavor_name[flavor], tmpdir, metrics=model_metrics, params=model_params)
         zipped_file = _zip_artifacts(tmpdir)
 
         login_response = _login(email, password, login_url)
@@ -398,19 +452,16 @@ def _get_required_log_model_args(log_model_func: callable) -> list:
 
 
 def _log_flavor(flavor: str,
-                input_example,
+                input_example: Optional[Union[pandas.core.frame.DataFrame, numpy.ndarray, dict, list]],
                 signature: mlflow.models.signature.ModelSignature,
                 **kwargs) -> mlflow.entities.Run:
-    # conda_env: str,
-    # input_example: Union[pandas.core.frame.DataFrame, numpy.ndarray, dict, list],
-    # signature: mlflow.models.signature.ModelSignature):
     """ Log model flavor to Shipped Brain - similar to mlflow.<flavour>.log_model
 
     :param model: path to serialized model
     :param flavor: a valid model flavor
-    :param conda_env: path to conda environment file
-    :param input_example: path to input example file
-    :param signature: an mlflow.Signature
+    :param input_example: one or several instances of valid model input
+    :param signature:  ModelSignature describes model input and output Schema. The model signature can be inferred from
+    datasets with valid model input and valid model output
 
     :return: logged model mlflow.entities.Run instance
     """
@@ -427,7 +478,8 @@ def _log_flavor(flavor: str,
     assert hasattr(mlflow, flavor), f"Failed to log model. Could not find flavor '{flavor}' in mlflow." 
 
     flavor_module = eval(f"mlflow.{flavor}" )
-    assert callable(getattr(flavor_module, log_model_function_name)), f"Failed to log model. Flavor '{flavor}' does not have {log_model_function_name} method."
+    assert callable(getattr(flavor_module, log_model_function_name)), \
+        f"Failed to log model. Flavor '{flavor}' does not have {log_model_function_name} method."
 
     log_model_function = eval(f"mlflow.{flavor}.{log_model_function_name}")
 

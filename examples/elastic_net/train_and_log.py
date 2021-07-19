@@ -100,10 +100,14 @@ def main(publish):
 
     if publish:
         print("Publishing model to app.shippedbrain.com")
-        shippedbrain.upload_run(email=SHIPPED_BRAIN_EMAIL,
+        res = shippedbrain.upload_run(email=SHIPPED_BRAIN_EMAIL,
                                 password=SHIPPED_BRAIN_PASSWORD,
                                 run_id=run.info.run_id,
-                                model_name=MODEL_NAME)
+                                model_name=MODEL_NAME,
+                                login_url="http://localhost:8000/api/v0/login",
+                                upload_url="http://localhost:8001/uploads/deploy")
+        print(res.status_code)
+        print(res.text)
 
     return run
 

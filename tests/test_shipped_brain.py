@@ -16,6 +16,9 @@ RUN_ID = os.environ.get("SHIPPED_BRAIN_TEST_RUN_ID")
 MODEL_ARTIFACTS_DIR = "model"
 RUN_PATH = os.path.join(MLRUNS_PATH, f"0/{RUN_ID}/")
 
+METRICS_BASE = {"mae": 0.6300136375992776, "r2": 0.13436095724614394, "rmse": 0.7845737207568625}
+PARAMS_BASE = {"l1_ratio": "0.5", "alpha": "0.5"}
+
 
 class TestShippedBrain:
 
@@ -71,7 +74,9 @@ class TestShippedBrain:
         shipped_brain_yaml = {
             "model_name": MODEL_NAME,
             "flavor": shippedbrain.flavor_name["pyfunc"],
-            "model_artifacts_path": MODEL_ARTIFACTS_DIR
+            "model_artifacts_path": MODEL_ARTIFACTS_DIR,
+            "metrics": METRICS_BASE,
+            "params": PARAMS_BASE
         }
         with tempfile.TemporaryDirectory() as tmpdir:
             shipped_brain_yaml_path = os.path.join(tmpdir, "shipped-brain.yaml")
@@ -79,7 +84,9 @@ class TestShippedBrain:
             shipped_brain_yaml_path_result = shippedbrain._create_shipped_brain_yaml(MODEL_NAME,
                                                                                      MODEL_ARTIFACTS_DIR,
                                                                                      shippedbrain.flavor_name["pyfunc"],
-                                                                                     tmpdir)
+                                                                                     tmpdir,
+                                                                                     metrics=METRICS_BASE,
+                                                                                     params=PARAMS_BASE)
 
             assert shipped_brain_yaml_path_result == shipped_brain_yaml_path
 
@@ -179,7 +186,7 @@ class TestShippedBrain:
     def test_upload_run(self):
         response = shippedbrain.upload_run(run_id=RUN_ID,
                                            model_name="Test-Model-upload_run",
-                                           email="bernardo@shippedbrain.com",
+                                           email="blc@mail.com",
                                            password="password",
                                            login_url=LOGIN_URL_HTTP,
                                            upload_url=UPLOAD_URL_HTTP)
@@ -204,7 +211,7 @@ class TestShippedBrain:
             curr_try += 1
             response = shippedbrain.upload_model(flavor="sklearn",
                                                  model_name="Test-Model-upload_model",
-                                                 email="bernardo@shippedbrain.com",
+                                                 email="blc@mail.com",
                                                  password="password",
                                                  signature=signature,
                                                  input_example=input_example,
@@ -220,3 +227,12 @@ class TestShippedBrain:
                 break
         assert response.status_code == 200
 
+    def test__get_run_params(self):
+        params = shippedbrain._get_run_params(client, RUN_ID)
+
+        assert params == PARAMS_BASE
+
+    def test__get_run_metrics(self):
+        metrics = shippedbrain._get_run_metrics(client, RUN_ID)
+        
+        assert metrics == METRICS_BASE
