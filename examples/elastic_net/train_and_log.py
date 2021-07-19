@@ -103,9 +103,7 @@ def main(publish):
         res = shippedbrain.upload_run(email=SHIPPED_BRAIN_EMAIL,
                                 password=SHIPPED_BRAIN_PASSWORD,
                                 run_id=run.info.run_id,
-                                model_name=MODEL_NAME,
-                                login_url="http://localhost:8000/api/v0/login",
-                                upload_url="http://localhost:8001/uploads/deploy")
+                                model_name=MODEL_NAME)
         print(res.status_code)
         print(res.text)
 
